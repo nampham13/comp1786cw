@@ -1,38 +1,33 @@
-import 'yoga_class.dart';
-
 class Booking {
   final String id;
   final String userEmail;
-  final List<YogaClass> classes;
+  final List<String> classIds;
   final DateTime bookingDate;
   final double totalAmount;
 
   Booking({
     required this.id,
     required this.userEmail,
-    required this.classes,
+    required this.classIds,
     required this.bookingDate,
     required this.totalAmount,
   });
 
-  factory Booking.fromJson(Map<String, dynamic> json) {
+  factory Booking.fromMap(Map<String, dynamic> map, String id) {
     return Booking(
-      id: json['id'],
-      userEmail: json['userEmail'],
-      classes: (json['classes'] as List)
-          .map((classJson) => YogaClass.fromJson(classJson))
-          .toList(),
-      bookingDate: DateTime.parse(json['bookingDate']),
-      totalAmount: json['totalAmount'].toDouble(),
+      id: id,
+      userEmail: map['userEmail'] ?? '',
+      classIds: List<String>.from(map['classIds'] ?? []),
+      bookingDate: map['bookingDate']?.toDate() ?? DateTime.now(),
+      totalAmount: map['totalAmount'] ?? 0.0,
     );
   }
 
-  Map<String, dynamic> toJson() {
+  Map<String, dynamic> toMap() {
     return {
-      'id': id,
       'userEmail': userEmail,
-      'classes': classes.map((yogaClass) => yogaClass.toJson()).toList(),
-      'bookingDate': bookingDate.toIso8601String(),
+      'classIds': classIds,
+      'bookingDate': bookingDate,
       'totalAmount': totalAmount,
     };
   }

@@ -1,101 +1,95 @@
 import 'package:flutter/foundation.dart';
-import 'dart:math';
 import '../models/booking.dart';
+import '../models/cart_item.dart';
+import '../models/class_instance.dart';
 import '../models/yoga_class.dart';
-import '../services/api_service.dart';
+import '../services/firebase_service.dart';
 
 class BookingProvider with ChangeNotifier {
-  final ApiService _apiService = ApiService();
-
-  // In-memory storage of bookings by email
-  final Map<String, List<Booking>> _bookingsByEmail = {};
-
-  List<Booking> _bookings = [];
-  bool _isLoading = false;
-  String? _error;
-
-  // Getters
-  List<Booking> get bookings => [..._bookings];
-  bool get isLoading => _isLoading;
-  String? get error => _error;
-
-  // Fetch user bookings (from in-memory storage or API)
-  Future<void> fetchUserBookings(String email) async {
-    _isLoading = true;
-    _error = null;
+  final FirebaseService _firebaseService;
+  
+  List<CartItem> _cart = [];
+  List<Booking> _userBookings = [];
+  String? _userEmail;
+  
+  BookingProvider(this._firebaseService);
+  
+  List<CartItem> get cart => _cart;
+  List<Booking> get userBookings => _userBookings;
+  String? get userEmail => _userEmail;
+  
+  double get cartTotal => _cart.fold(0, (sum, item) => sum + item.price);
+  
+  void setUserEmail(String email) {
+    _userEmail = email;
+    fetchUserBookings();
     notifyListeners();
-
-    try {
-      // Check if we have bookings for this email in memory
-      if (_bookingsByEmail.containsKey(email)) {
-        _bookings = _bookingsByEmail[email]!;
-        _isLoading = false;
-        notifyListeners();
-        return;
-      }
-
-      // Otherwise fetch from API
-      try {
-        final fetchedBookings = await _apiService.fetchUserBookings(email);
-        _bookings = fetchedBookings;
-        _bookingsByEmail[email] = fetchedBookings;
-      } catch (apiError) {
-        // If API fails, return empty list (for demo purposes)
-        _bookings = [];
-        _bookingsByEmail[email] = [];
-      }
-
-      _isLoading = false;
-      notifyListeners();
-    } catch (error) {
-      _error = error.toString();
-      _isLoading = false;
+  }
+  
+  void addToCart(CartItem item) {
+    // Check if class is already in cart
+    bool exists = _cart.any((cartItem) => cartItem.classInstance.id == item.classInstance.id);
+    
+    if (!exists) {
+      _cart.add(item);
       notifyListeners();
     }
   }
-
-  // Submit a new booking
-  Future<bool> submitBooking(String email, List<YogaClass> classes) async {
-    _isLoading = true;
-    _error = null;
+  
+  void removeFromCart(String classInstanceId) {
+    _cart.removeWhere((item) => item.classInstance.id == classInstanceId);
     notifyListeners();
-
-    try {
-      // Try to submit to API
-      Booking newBooking;
-      try {
-        newBooking = await _apiService.submitBooking(email, classes);
-      } catch (apiError) {
-        // If API fails, create a mock booking (for demo purposes)
-        final totalAmount = classes.fold(0.0, (sum, yogaClass) => sum + yogaClass.price);
-        newBooking = Booking(
-          id: 'local-${Random().nextInt(10000)}',
-          userEmail: email,
-          classes: List.from(classes),
-          bookingDate: DateTime.now(),
-          totalAmount: totalAmount,
-        );
-      }
-
-      // Store in our in-memory storage
-      if (!_bookingsByEmail.containsKey(email)) {
-        _bookingsByEmail[email] = [];
-      }
-      _bookingsByEmail[email]!.add(newBooking);
-
-      // Update current bookings if we're viewing this email's bookings
-      if (_bookings.isNotEmpty && _bookings.first.userEmail == email) {
-        _bookings.add(newBooking);
-      }
-
-      _isLoading = false;
-      notifyListeners();
-      return true;
-    } catch (error) {
-      _error = error.toString();
-      _isLoading = false;
-      notifyListeners();
+  }
+  
+  void clearCart() {
+    _cart = [];
+    notifyListeners();
+  }
+  
+  Future<bool> checkout() async {
+    if (_userEmail == null || _cart.isEmpty) {
       return false;
     }
+    
+    try {
+      // Create booking
+      Booking booking = Booking(
+        id: '', // Will be set by Firestore
+        userEmail: _userEmail!,
+        classIds: _cart.map((item) => item.classInstance.id).toList(),
+        bookingDate: DateTime.now(),
+        totalAmount: cartTotal,
+      );
+      
+      String bookingId = await _firebaseService.createBooking(booking);
+      
+      // Clear cart after successful booking
+      clearCart();
+      
+      // Refresh user bookings
+      fetchUserBookings();
+      
+      return true;
+    } catch (e) {
+      print('Error during checkout: $e');
+      return false;
+    }
+  }
+  
+  void fetchUserBookings() {
+    if (_userEmail != null) {
+      _firebaseService.getBookingsForUser(_userEmail!).listen((bookings) {
+        _userBookings = bookings;
+        notifyListeners();
+      });
+    }
+  }
+  
+  Future<List<ClassInstance>> getBookedClassInstances(Booking booking) async {
+    return await _firebaseService.getClassInstancesByIds(booking.classIds);
+  }
+  
+  Future<YogaClass?> getYogaClassForInstance(ClassInstance instance) async {
+    return await _firebaseService.getYogaClassById(instance.courseId);
   }
 }

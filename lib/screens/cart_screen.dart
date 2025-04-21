@@ -1,42 +1,41 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/cart_provider.dart';
+import 'package:intl/intl.dart';
+import '../providers/booking_provider.dart';
 import 'checkout_screen.dart';
 
 class CartScreen extends StatelessWidget {
-  const CartScreen({Key? key}) : super(key: key);
+  const CartScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final cartProvider = Provider.of<CartProvider>(context);
-    final cart = cartProvider.cart;
+    final bookingProvider = Provider.of<BookingProvider>(context);
+    final cart = bookingProvider.cart;
     
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Your Cart'),
+        title: const Text('Shopping Cart'),
         actions: [
-          if (cart.itemCount > 0)
+          if (cart.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.delete),
               onPressed: () {
                 showDialog(
                   context: context,
-                  builder: (ctx) => AlertDialog(
+                  builder: (context) => AlertDialog(
                     title: const Text('Clear Cart'),
-                    content: const Text('Are you sure you want to remove all items?'),
+                    content: const Text('Are you sure you want to clear your cart?'),
                     actions: [
                       TextButton(
-                        onPressed: () {
-                          Navigator.of(ctx).pop();
-                        },
-                        child: const Text('No'),
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Cancel'),
                       ),
                       TextButton(
                         onPressed: () {
-                          cartProvider.clear();
-                          Navigator.of(ctx).pop();
+                          bookingProvider.clearCart();
+                          Navigator.pop(context);
                         },
-                        child: const Text('Yes'),
+                        child: const Text('Clear'),
                       ),
                     ],
                   ),
@@ -45,89 +44,72 @@ class CartScreen extends StatelessWidget {
             ),
         ],
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: cart.items.isEmpty
-                ? const Center(
-                    child: Text(
-                      'Your cart is empty!',
-                      style: TextStyle(fontSize: 18),
+      body: cart.isEmpty
+          ? const Center(
+              child: Text('Your cart is empty'),
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: cart.length,
+              itemBuilder: (context, index) {
+                final item = cart[index];
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: ListTile(
+                    title: Text(
+                      item.yogaClass.name,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
-                  )
-                : ListView.builder(
-                    itemCount: cart.items.length,
-                    itemBuilder: (ctx, i) => Card(
-                      margin: const EdgeInsets.symmetric(
-                        horizontal: 15,
-                        vertical: 4,
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(8),
-                        child: ListTile(
-                          leading: CircleAvatar(
-                            child: Padding(
-                              padding: const EdgeInsets.all(5),
-                              child: FittedBox(
-                                child: Text('\$${cart.items[i].yogaClass.price}'),
-                              ),
-                            ),
-                          ),
-                          title: Text(cart.items[i].yogaClass.title),
-                          subtitle: Text(
-                            'Total: \$${cart.items[i].totalPrice.toStringAsFixed(2)}',
-                          ),
-                          trailing: IconButton(
-                            icon: const Icon(Icons.delete),
-                            onPressed: () {
-                              cartProvider.removeItem(cart.items[i].yogaClass.id);
-                            },
-                          ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          DateFormat('EEEE, MMMM d, yyyy').format(item.classInstance.date),
                         ),
-                      ),
+                        Text('Time: ${DateFormat('h:mm a').format(item.classInstance.date)}'),
+                        Text('Price: \$${item.price.toStringAsFixed(2)}'),
+                      ],
+                    ),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.remove_circle_outline),
+                      onPressed: () {
+                        bookingProvider.removeFromCart(item.classInstance.id);
+                      },
                     ),
                   ),
-          ),
-          Card(
-            margin: const EdgeInsets.all(15),
-            child: Padding(
-              padding: const EdgeInsets.all(8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Total',
-                    style: TextStyle(fontSize: 20),
-                  ),
-                  const Spacer(),
-                  Chip(
-                    label: Text(
-                      '\$${cart.totalAmount.toStringAsFixed(2)}',
-                      style: TextStyle(
-                        color: Theme.of(context).primaryTextTheme.titleLarge?.color,
+                );
+              },
+            ),
+      bottomNavigationBar: cart.isEmpty
+          ? null
+          : BottomAppBar(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Total: \$${bookingProvider.cartTotal.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                    backgroundColor: Theme.of(context).primaryColor,
-                  ),
-                  const SizedBox(width: 10),
-                  TextButton(
-                    onPressed: cart.items.isEmpty
-                        ? null
-                        : () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (ctx) => const CheckoutScreen(),
-                              ),
-                            );
-                          },
-                    child: const Text('CHECKOUT'),
-                  )
-                ],
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const CheckoutScreen(),
+                          ),
+                        );
+                      },
+                      child: const Text('Checkout'),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
-      ),
     );
   }
 }

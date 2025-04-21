@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../providers/booking_provider.dart';
+import '../models/booking.dart';
+import '../models/class_instance.dart';
+import '../models/yoga_class.dart';
 
 class BookingsScreen extends StatefulWidget {
-  const BookingsScreen({Key? key}) : super(key: key);
+  const BookingsScreen({super.key});
 
   @override
   State<BookingsScreen> createState() => _BookingsScreenState();
@@ -13,202 +16,191 @@ class BookingsScreen extends StatefulWidget {
 class _BookingsScreenState extends State<BookingsScreen> {
   final _emailController = TextEditingController();
   bool _isLoading = false;
-  bool _hasSearched = false;
-
+  
+  @override
+  void initState() {
+    super.initState();
+    final bookingProvider = Provider.of<BookingProvider>(context, listen: false);
+    if (bookingProvider.userEmail != null) {
+      _emailController.text = bookingProvider.userEmail!;
+    }
+  }
+  
   @override
   void dispose() {
     _emailController.dispose();
     super.dispose();
   }
-
-  Future<void> _fetchBookings() async {
-    if (_emailController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter your email'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    setState(() {
-      _isLoading = true;
-      _hasSearched = true;
-    });
-
-    try {
-      await Provider.of<BookingProvider>(context, listen: false)
-          .fetchUserBookings(_emailController.text);
-    } catch (error) {
-      if (!mounted) return;
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error fetching bookings: $error'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
+  
   @override
   Widget build(BuildContext context) {
     final bookingProvider = Provider.of<BookingProvider>(context);
+    final userEmail = bookingProvider.userEmail;
+    final bookings = bookingProvider.userBookings;
     
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Your Bookings'),
+        title: const Text('My Bookings'),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
+      body: userEmail == null
+          ? _buildEmailForm()
+          : bookings.isEmpty
+              ? const Center(
+                  child: Text('You have no bookings yet'),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: bookings.length,
+                  itemBuilder: (context, index) {
+                    return _buildBookingCard(context, bookings[index]);
+                  },
+                ),
+    );
+  }
+  
+  Widget _buildEmailForm() {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            'Enter your email to view your bookings',
+            style: Theme.of(context).textTheme.titleLarge,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _emailController,
+            decoration: const InputDecoration(
+              labelText: 'Email',
+              hintText: 'Enter your email address',
+              prefixIcon: Icon(Icons.email),
+            ),
+            keyboardType: TextInputType.emailAddress,
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _isLoading
+                  ? null
+                  : () {
+                      if (_emailController.text.isNotEmpty) {
+                        setState(() {
+                          _isLoading = true;
+                        });
+                        
+                        // Set user email and fetch bookings
+                        final bookingProvider = Provider.of<BookingProvider>(
+                          context, 
+                          listen: false,
+                        );
+                        bookingProvider.setUserEmail(_emailController.text);
+                        
+                        setState(() {
+                          _isLoading = false;
+                        });
+                      }
+                    },
+              child: _isLoading
+                  ? const CircularProgressIndicator()
+                  : const Text('View Bookings'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildBookingCard(BuildContext context, Booking booking) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 16),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Email input and search button
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Expanded(
-                  child: TextField(
-                    controller: _emailController,
-                    decoration: const InputDecoration(
-                      labelText: 'Email',
-                      hintText: 'Enter your email to find bookings',
-                      border: OutlineInputBorder(),
-                    ),
-                    keyboardType: TextInputType.emailAddress,
-                  ),
+                Text(
+                  'Booking #${booking.id.substring(0, 8)}',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: _isLoading ? null : _fetchBookings,
-                  child: _isLoading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Text('SEARCH'),
+                Text(
+                  DateFormat('MMM d, yyyy').format(booking.bookingDate),
                 ),
               ],
             ),
+            const Divider(),
+            Text('Total: \$${booking.totalAmount.toStringAsFixed(2)}'),
+            const SizedBox(height: 8),
+            Text('Classes: ${booking.classIds.length}'),
             const SizedBox(height: 16),
-            
-            // Bookings list
-            Expanded(
-              child: !_hasSearched
-                  ? const Center(
-                      child: Text(
-                        'Enter your email to view your bookings',
-                        style: TextStyle(fontSize: 16),
-                      ),
-                    )
-                  : bookingProvider.isLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : bookingProvider.error != null
-                          ? Center(
-                              child: Text(
-                                'Error: ${bookingProvider.error}',
-                                style: const TextStyle(color: Colors.red),
-                                textAlign: TextAlign.center,
-                              ),
-                            )
-                          : bookingProvider.bookings.isEmpty
-                              ? const Center(
-                                  child: Text(
-                                    'No bookings found for this email',
-                                    style: TextStyle(fontSize: 16),
-                                  ),
-                                )
-                              : ListView.builder(
-                                  itemCount: bookingProvider.bookings.length,
-                                  itemBuilder: (ctx, i) {
-                                    final booking = bookingProvider.bookings[i];
-                                    return Card(
-                                      margin: const EdgeInsets.only(bottom: 16),
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(16.0),
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            // Booking ID and date
-                                            Row(
-                                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                              children: [
-                                                Text(
-                                                  'Booking #${booking.id}',
-                                                  style: Theme.of(context).textTheme.titleMedium,
-                                                ),
-                                                Text(
-                                                  DateFormat('MMM d, yyyy').format(booking.bookingDate),
-                                                  style: Theme.of(context).textTheme.bodyMedium,
-                                                ),
-                                              ],
-                                            ),
-                                            const Divider(),
-                                            
-                                            // Classes in this booking
-                                            ...booking.classes.map((yogaClass) => Padding(
-                                              padding: const EdgeInsets.symmetric(vertical: 4.0),
-                                              child: Row(
-                                                crossAxisAlignment: CrossAxisAlignment.start,
-                                                children: [
-                                                  const Icon(Icons.fitness_center, size: 20),
-                                                  const SizedBox(width: 8),
-                                                  Expanded(
-                                                    child: Column(
-                                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                                      children: [
-                                                        Text(
-                                                          yogaClass.title,
-                                                          style: const TextStyle(fontWeight: FontWeight.bold),
-                                                        ),
-                                                        Text(
-                                                          '${DateFormat('EEEE, MMMM d').format(yogaClass.dateTime)} at ${DateFormat('h:mm a').format(yogaClass.dateTime)}',
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                  Text('\$${yogaClass.price.toStringAsFixed(2)}'),
-                                                ],
-                                              ),
-                                            )).toList(),
-                                            
-                                            const Divider(),
-                                            
-                                            // Total amount
-                                            Row(
-                                              mainAxisAlignment: MainAxisAlignment.end,
-                                              children: [
-                                                const Text('Total: '),
-                                                Text(
-                                                  '\$${booking.totalAmount.toStringAsFixed(2)}',
-                                                  style: const TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                    fontSize: 16,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-            ),
+            _buildBookingClasses(context, booking),
           ],
         ),
       ),
+    );
+  }
+  
+  Widget _buildBookingClasses(BuildContext context, Booking booking) {
+    final bookingProvider = Provider.of<BookingProvider>(context);
+    
+    return FutureBuilder<List<ClassInstance>>(
+      future: bookingProvider.getBookedClassInstances(booking),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        
+        if (snapshot.hasError) {
+          return Text('Error: ${snapshot.error}');
+        }
+        
+        final instances = snapshot.data ?? [];
+        
+        if (instances.isEmpty) {
+          return const Text('No class details available');
+        }
+        
+        return Column(
+          children: instances.map((instance) {
+            return FutureBuilder<YogaClass?>(
+              future: bookingProvider.getYogaClassForInstance(instance),
+              builder: (context, yogaClassSnapshot) {
+                if (yogaClassSnapshot.connectionState == ConnectionState.waiting) {
+                  return const ListTile(
+                    title: Text('Loading...'),
+                  );
+                }
+                
+                final yogaClass = yogaClassSnapshot.data;
+                
+                return ListTile(
+                  title: Text(yogaClass?.name ?? 'Unknown Class'),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(DateFormat('EEEE, MMMM d, yyyy').format(instance.date)),
+                      Text('Time: ${DateFormat('h:mm a').format(instance.date)}'),
+                      if (instance.isCancelled)
+                        const Text(
+                          'CANCELLED',
+                          style: TextStyle(
+                            color: Colors.red,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                    ],
+                  ),
+                );
+              },
+            );
+          }).toList(),
+        );
+      },
     );
   }
 }

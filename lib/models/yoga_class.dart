@@ -1,62 +1,58 @@
 class YogaClass {
   final String id;
-  final String title;
+  final String name;
+  final String type;
   final String description;
-  final String instructor;
-  final DateTime dateTime;
-  final int duration; // in minutes
+  final String dayOfWeek;
+  final String time;
   final int capacity;
-  final int enrolled;
+  final int duration;
   final double price;
+  final List<String> classInstanceIds;
+  final Map<String, dynamic> additionalFields;
 
   YogaClass({
     required this.id,
-    required this.title,
+    required this.name,
+    required this.type,
     required this.description,
-    required this.instructor,
-    required this.dateTime,
-    required this.duration,
+    required this.dayOfWeek,
+    required this.time,
     required this.capacity,
-    required this.enrolled,
+    required this.duration,
     required this.price,
+    required this.classInstanceIds,
+    required this.additionalFields,
   });
 
-  factory YogaClass.fromJson(Map<String, dynamic> json) {
+  factory YogaClass.fromMap(Map<String, dynamic> map, String id) {
     return YogaClass(
-      id: json['id'],
-      title: json['title'],
-      description: json['description'],
-      instructor: json['instructor'],
-      dateTime: DateTime.parse(json['dateTime']),
-      duration: json['duration'],
-      capacity: json['capacity'],
-      enrolled: json['enrolled'],
-      price: json['price'].toDouble(),
+      id: id,
+      name: map['name'] ?? '',
+      type: map['type'] ?? '',
+      description: map['description'] ?? '',
+      dayOfWeek: map['dayOfWeek'] ?? '',
+      time: map['time'] ?? '',
+      capacity: map['capacity'] ?? 0,
+      duration: map['duration'] ?? 0,
+      price: map['price'] ?? 0.0,
+      classInstanceIds: List<String>.from(map['classInstanceIds'] ?? []),
+      additionalFields: Map<String, dynamic>.from(map['additionalFields'] ?? {}),
     );
   }
 
-  Map<String, dynamic> toJson() {
+  Map<String, dynamic> toMap() {
     return {
-      'id': id,
-      'title': title,
+      'name': name,
+      'type': type,
       'description': description,
-      'instructor': instructor,
-      'dateTime': dateTime.toIso8601String(),
-      'duration': duration,
+      'dayOfWeek': dayOfWeek,
+      'time': time,
       'capacity': capacity,
-      'enrolled': enrolled,
+      'duration': duration,
       'price': price,
+      'classInstanceIds': classInstanceIds,
+      'additionalFields': additionalFields,
     };
-  }
-
-  bool get isAvailable => enrolled < capacity;
-  
-  String get dayOfWeek {
-    final days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-    return days[dateTime.weekday - 1];
-  }
-  
-  String get timeOfDay {
-    return '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
   }
 }

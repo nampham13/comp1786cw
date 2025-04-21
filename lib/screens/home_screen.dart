@@ -1,43 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/yoga_classes_provider.dart';
-import '../widgets/class_list.dart';
-import '../widgets/search_filter.dart';
+import '../providers/class_provider.dart';
+import '../models/yoga_class.dart';
+import '../widgets/class_card.dart';
+import '../widgets/filter_bar.dart';
 import 'cart_screen.dart';
 import 'bookings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({Key? key}) : super(key: key);
+  const HomeScreen({super.key});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  String? _selectedDay;
-  String? _selectedTimeOfDay;
-  bool _isInit = true;
-  
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_isInit) {
-      Provider.of<YogaClassesProvider>(context).fetchClasses();
-      _isInit = false;
-    }
-  }
-
-  void _applyFilters(String? day, String? timeOfDay) {
-    setState(() {
-      _selectedDay = day;
-      _selectedTimeOfDay = timeOfDay;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
-    final classesProvider = Provider.of<YogaClassesProvider>(context);
-    
     return Scaffold(
       appBar: AppBar(
         title: const Text('Yoga Classes'),
@@ -45,20 +24,18 @@ class _HomeScreenState extends State<HomeScreen> {
           IconButton(
             icon: const Icon(Icons.shopping_cart),
             onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (ctx) => const CartScreen(),
-                ),
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const CartScreen()),
               );
             },
           ),
           IconButton(
             icon: const Icon(Icons.history),
             onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (ctx) => const BookingsScreen(),
-                ),
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const BookingsScreen()),
               );
             },
           ),
@@ -66,28 +43,27 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: Column(
         children: [
-          // Search and filter section
-          SearchFilter(
-            onApplyFilters: _applyFilters,
-          ),
-          
-          // Classes list
+          const FilterBar(),
           Expanded(
-            child: classesProvider.isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : classesProvider.error != null
-                    ? Center(
-                        child: Text(
-                          'Error: ${classesProvider.error}',
-                          textAlign: TextAlign.center,
-                        ),
-                      )
-                    : ClassList(
-                        classes: classesProvider.searchClasses(
-                          day: _selectedDay,
-                          timeOfDay: _selectedTimeOfDay,
-                        ),
-                      ),
+            child: Consumer<ClassProvider>(
+              builder: (context, classProvider, child) {
+                final classes = classProvider.filteredClasses;
+                
+                if (classes.isEmpty) {
+                  return const Center(
+                    child: Text('No classes found. Try adjusting your filters.'),
+                  );
+                }
+                
+                return ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: classes.length,
+                  itemBuilder: (context, index) {
+                    return ClassCard(yogaClass: classes[index]);
+                  },
+                );
+              },
+            ),
           ),
         ],
       ),
